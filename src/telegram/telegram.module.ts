@@ -2,6 +2,8 @@ import { ConfigModule } from '@nestjs/config';
 import { Module } from '@nestjs/common';
 import { TelegramBotProvider } from './telegram.provider';
 import { TelegramService } from './telegram.service';
+import { AutoResponderService } from './autoResponder.service';
+import { OpenAIProvider } from './openai.provider';
 
 @Module({
     imports: [
@@ -9,6 +11,11 @@ import { TelegramService } from './telegram.service';
             isGlobal: true,
         }),
     ],
-    providers: [TelegramService, TelegramBotProvider],
+    providers: [
+        TelegramService,
+        AutoResponderService,
+        TelegramBotProvider,
+        OpenAIProvider,
+    ],
 })
 export class TelegramModule {}

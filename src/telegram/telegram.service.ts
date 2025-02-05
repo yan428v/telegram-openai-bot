@@ -1,17 +1,15 @@
 import { Injectable, OnModuleInit, Inject } from '@nestjs/common';
 import { Telegraf } from 'telegraf';
 import { OpenAI } from 'openai';
+import { AutoResponderService } from './autoResponder.service';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
-    private openAi: OpenAI;
-
-    constructor(@Inject('TELEGRAM_BOT') private readonly bot: Telegraf) {
-        const configuration = {
-            apiKey: process.env.OPENAI_API_KEY,
-        };
-        this.openAi = new OpenAI(configuration);
-    }
+    constructor(
+        @Inject('TELEGRAM_BOT') private readonly bot: Telegraf,
+        @Inject('OPENAI_CLIENT') private readonly openAi: OpenAI,
+        private readonly autoResponderService: AutoResponderService,
+    ) {}
 
     onModuleInit() {
         this.bot.start((ctx) => {
@@ -20,48 +18,50 @@ export class TelegramService implements OnModuleInit {
 
         this.bot.on('text', async (ctx) => {
             const userMessage = ctx.message.text;
+            const lowerCaseMsg = userMessage.toLowerCase();
             const triggers = ['чат', 'бот', 'кореш'];
 
-            // проверяем, начинается ли сообщение с одного из ключевых слов
-            if (
-                !triggers.some((trigger) =>
-                    userMessage.toLowerCase().startsWith(trigger),
-                )
-            ) {
-                return; // игнорируем сообщения, не соответствующие ключевым словам
+            // Проверка явных триггеров
+            const trigger = triggers.find((t) => lowerCaseMsg.startsWith(t));
+            if (trigger) {
+                const trimmedMessage = userMessage.slice(trigger.length).trim();
+                try {
+                    const completion =
+                        await this.openAi.chat.completions.create({
+                            model: 'gpt-4o-mini',
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: `Ты — ассистент. Отвечай коротко, на русском языке.`,
+                                },
+                                {
+                                    role: 'user',
+                                    content: trimmedMessage,
+                                },
+                            ],
+                            store: true,
+                        });
+                    const openAiReply =
+                        completion.choices[0]?.message?.content ||
+                        'Ответ не найден.';
+                    await ctx.reply(openAiReply);
+                } catch (err) {
+                    console.error('Ошибка запроса к OpenAI:', err);
+                    await ctx.reply('Произошла ошибка при запросе к OpenAI!');
+                }
+                return;
             }
 
-            // Убираем ключевое слово и пробелы
-            const trigger = triggers.find((t) =>
-                userMessage.toLowerCase().startsWith(t),
-            )!;
-            const trimmedMessage = userMessage.slice(trigger.length).trim();
-
-            try {
-                const completion = await this.openAi.chat.completions.create({
-                    model: 'gpt-4o-mini',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are a helpful assistant.',
-                        },
-                        {
-                            role: 'user',
-                            content: trimmedMessage,
-                        },
-                    ],
-                    store: true,
-                });
-
-                const openAiReply =
-                    completion.choices[0]?.message?.content ||
-                    'Ответ не найден.';
-                await ctx.reply(openAiReply);
-            } catch {
-                await ctx.reply('Произошла ошибка при запросе к OpenAI!');
+            // если сообщение не соответствует явному триггеру, пробуем автоответ
+            const autoReply =
+                await this.autoResponderService.tryAutoResponse(userMessage);
+            if (autoReply) {
+                await ctx.reply(autoReply);
             }
         });
 
-        this.bot.launch().catch(() => console.error('Ошибка запуска бота'));
+        this.bot
+            .launch()
+            .catch((err) => console.error('Ошибка запуска бота:', err));
     }
 }
