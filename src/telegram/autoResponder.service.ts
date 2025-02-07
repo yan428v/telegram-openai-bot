@@ -10,7 +10,7 @@ interface ChatMessage {
 export class AutoResponderService {
     private readonly contextSize = 3;
     private readonly historyLimit = 3; // минимальное количество сообщений которое должно быть в контексте для ответа
-    private readonly replyProbability = 100; // вероятность автоответа в процентах
+    private readonly replyProbability = 20; // вероятность автоответа в процентах
     private readonly cooldownDuration = 60 * 1000; // кулдаун в миллисекундах
     private readonly maxHistorySize = 5; // максимальное количество хранимых сообщений
     private lastResponseTime: number | null = null;
@@ -22,7 +22,7 @@ export class AutoResponderService {
         if (newMessage) {
             this.messageHistory.push(newMessage);
 
-            console.log(this.messageHistory);
+            // console.log(this.messageHistory);
 
             //чистим историю до указанного в maxHistorySize значении
             while (this.messageHistory.length > this.maxHistorySize) {
@@ -58,7 +58,7 @@ export class AutoResponderService {
             {
                 role: 'system',
                 content:
-                    'Ты отвечаешь не более чем в 50 слов, на русском языке. Используй накопленный контекст.',
+                    'Ты отвечаешь не более чем в 30 слов, на русском языке. Используй накопленный контекст.',
             },
 
             // из всего контекста, берет только столько сообщений сколько contextSize
@@ -69,7 +69,7 @@ export class AutoResponderService {
                 }),
             ),
         ];
-        console.log(messages);
+        // console.log(messages);
         try {
             const completion = await this.openAi.chat.completions.create({
                 model: 'gpt-4o-mini',
@@ -80,7 +80,7 @@ export class AutoResponderService {
                 completion.choices[0]?.message?.content || 'Ответ не найден.';
             // обновляем время последнего ответа и очищаем историю
             this.lastResponseTime = now;
-            this.messageHistory = [];
+            // this.messageHistory = []; //не чистить историю если убрать кулдаун норм тема
             return reply;
         } catch (error) {
             console.error('Ошибка при выполнении автоответа:', error);

@@ -4,6 +4,7 @@ import { TelegramBotProvider } from './telegram.provider';
 import { TelegramService } from './telegram.service';
 import { AutoResponderService } from './autoResponder.service';
 import { OpenAIProvider } from './openai.provider';
+import { JokeService } from './joke.service';
 
 @Module({
     imports: [
@@ -16,6 +17,7 @@ import { OpenAIProvider } from './openai.provider';
         AutoResponderService,
         TelegramBotProvider,
         OpenAIProvider,
+        JokeService,
     ],
 })
 export class TelegramModule {}

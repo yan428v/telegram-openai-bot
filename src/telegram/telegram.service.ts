@@ -2,6 +2,9 @@ import { Injectable, OnModuleInit, Inject } from '@nestjs/common';
 import { Telegraf } from 'telegraf';
 import { OpenAI } from 'openai';
 import { AutoResponderService } from './autoResponder.service';
+import { JokeService } from './joke.service';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
@@ -9,6 +12,7 @@ export class TelegramService implements OnModuleInit {
         @Inject('TELEGRAM_BOT') private readonly bot: Telegraf,
         @Inject('OPENAI_CLIENT') private readonly openAi: OpenAI,
         private readonly autoResponderService: AutoResponderService,
+        private readonly jokeService: JokeService,
     ) {}
 
     onModuleInit() {
@@ -19,9 +23,48 @@ export class TelegramService implements OnModuleInit {
         this.bot.on('text', async (ctx) => {
             const userMessage = ctx.message.text;
             const lowerCaseMsg = userMessage.toLowerCase();
+
+            // проверка для шуток
+            if (
+                lowerCaseMsg.startsWith('шутка!') ||
+                lowerCaseMsg.startsWith('анекдот!')
+            ) {
+                try {
+                    // получаем шутку
+                    const joke = await this.jokeService.getJoke();
+                    console.log('Шутка:', joke.content);
+
+                    // генерируем аудио с текстом шутки
+                    const response = await this.openAi.audio.speech.create({
+                        model: 'tts-1',
+                        voice: 'ash',
+                        input: joke.content,
+                    });
+
+                    //  путь для временного аудиофайла
+                    const audioPath = path.resolve('/tmp/joke.ogg');
+
+                    // сохраняем файл
+                    const buffer = Buffer.from(await response.arrayBuffer());
+                    await fs.promises.writeFile(audioPath, buffer);
+
+                    // отправляем аудиофайл в чат
+                    await ctx.replyWithVoice({ source: audioPath });
+
+                    // удаляем временный файл после отправки
+                    fs.unlink(audioPath, (err) => {
+                        if (err) console.error('Ошибка удаления файла:', err);
+                    });
+                } catch (err) {
+                    console.error('Ошибка получения шутки:', err);
+                    await ctx.reply('Произошла ошибка при получении шутки!');
+                }
+                return;
+            }
+
             const triggers = ['чат', 'бот', 'кореш'];
 
-            // Проверка явных триггеров
+            // проверка явных триггеров
             const trigger = triggers.find((t) => lowerCaseMsg.startsWith(t));
             if (trigger) {
                 const trimmedMessage = userMessage.slice(trigger.length).trim();
